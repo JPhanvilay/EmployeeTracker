@@ -26,10 +26,10 @@ function startApp() {
     "View all departments",
     "View all roles",
     "View all employees",
-    "Add a departments",
-    "Add a roles",
-    "Add an employees",
-    "Update an employees roles",
+    "Add a department",
+    "Add a role",
+    "Add an employee",
+    "Update an employees' roles",
     "Exit",
    ],
   })
@@ -44,16 +44,16 @@ function startApp() {
     case "View all employees":
      viewAllEmployees();
      break;
-    case "Add a departments":
+    case "Add a department":
      addDepartment();
      break;
-    case "Add a roles":
+    case "Add a role":
      addRole();
      break;
-    case "Add an employees":
+    case "Add an employee":
      addEmployee();
      break;
-    case "Update an employees roles":
+    case "Update an employees' roles":
      updateEmployeeRole();
      break;
     case "Exit":
@@ -110,7 +110,7 @@ function addDepartment() {
   .prompt({
    name: "department_name",
    type: "input",
-   message: "Enter the name of the departments:",
+   message: "Enter the name of the department:",
   })
   .then((answer) => {
    pool.query(
@@ -127,106 +127,169 @@ function addDepartment() {
 
 // Add a roles
 function addRole() {
- inquirer
-  .prompt([
-   {
-    name: "title",
-    type: "input",
-    message: "Enter the roles title:",
-   },
-   {
-    name: "salary",
-    type: "input",
-    message: "Enter the salary for the roles:",
-   },
-   {
-    name: "department_id",
-    type: "input",
-    message: "Enter the departments ID for the roles:",
-   },
-  ])
-  .then((answers) => {
-   pool.query(
-    "INSERT INTO roles (title, salary, department_id) VALUES ($1, $2, $3)",
-    [answers.title, answers.salary, answers.department_id],
-    (err) => {
-     if (err) throw err;
-     console.log("Role added successfully!");
-     startApp();
-    }
-   );
-  });
+ pool.query("SELECT id, name FROM departments", (err, res) => {
+  if (err) throw err;
+
+  const departments = res.rows;
+
+  inquirer
+   .prompt([
+    {
+     name: "title",
+     type: "input",
+     message: "Enter the role title:",
+    },
+    {
+     name: "salary",
+     type: "input",
+     message: "Enter the salary for the role:",
+    },
+    {
+     name: "department_name",
+     type: "list",
+     message: "Select the department for this role:",
+     choices: departments.map((department) => department.name),
+    },
+   ])
+   .then((answers) => {
+    const selectedDepartment = departments.find(
+     (department) => department.name === answers.department_name
+    );
+    const department_id = selectedDepartment ? selectedDepartment.id : null;
+
+    pool.query(
+     "INSERT INTO roles (title, salary, department_id) VALUES ($1, $2, $3)",
+     [answers.title, answers.salary, department_id],
+     (err) => {
+      if (err) throw err;
+      console.log("Role added successfully!");
+      startApp();
+     }
+    );
+   });
+ });
 }
 
 // Add an employees
+
 function addEmployee() {
- inquirer
-  .prompt([
-   {
-    name: "first_name",
-    type: "input",
-    message: "Enter the employees's first name:",
-   },
-   {
-    name: "last_name",
-    type: "input",
-    message: "Enter the employees's last name:",
-   },
-   {
-    name: "role_id",
-    type: "input",
-    message: "Enter the employees's roles ID:",
-   },
-   {
-    name: "manager_id",
-    type: "input",
-    message: "Enter the manager's ID (or leave blank if none):",
-   },
-  ])
-  .then((answers) => {
-   pool.query(
-    "INSERT INTO employees (first_name, last_name, role_id, manager_id) VALUES ($1, $2, $3, $4)",
-    [
-     answers.first_name,
-     answers.last_name,
-     answers.role_id,
-     answers.manager_id || null,
-    ],
-    (err) => {
-     if (err) throw err;
-     console.log("Employee added successfully!");
-     startApp();
-    }
-   );
-  });
+ pool.query("SELECT id, title FROM roles", (err, roleRes) => {
+  if (err) throw err;
+
+  const roles = roleRes.rows;
+
+  pool.query(
+   "SELECT id, CONCAT(first_name, ' ', last_name) AS name FROM employees",
+   (err, empRes) => {
+    if (err) throw err;
+
+    const managers = empRes.rows;
+
+    inquirer
+     .prompt([
+      {
+       name: "first_name",
+       type: "input",
+       message: "Enter the employee's first name:",
+      },
+      {
+       name: "last_name",
+       type: "input",
+       message: "Enter the employee's last name:",
+      },
+      {
+       name: "role_title",
+       type: "list",
+       message: "Select the role for this employee:",
+       choices: roles.map((role) => role.title),
+      },
+      {
+       name: "manager_name",
+       type: "list",
+       message: "Select the manager for this employee (or choose None):",
+       choices: ["None", ...managers.map((manager) => manager.name)],
+      },
+     ])
+     .then((answers) => {
+      const selectedRole = roles.find(
+       (role) => role.title === answers.role_title
+      );
+      const role_id = selectedRole ? selectedRole.id : null;
+
+      const selectedManager = managers.find(
+       (manager) => manager.name === answers.manager_name
+      );
+      const manager_id = selectedManager ? selectedManager.id : null;
+
+      pool.query(
+       "INSERT INTO employees (first_name, last_name, role_id, manager_id) VALUES ($1, $2, $3, $4)",
+       [answers.first_name, answers.last_name, role_id, manager_id || null],
+       (err) => {
+        if (err) throw err;
+        console.log("Employee added successfully!");
+        startApp();
+       }
+      );
+     });
+   }
+  );
+ });
 }
 
 // Update an employees roles
+
 function updateEmployeeRole() {
- inquirer
-  .prompt([
-   {
-    name: "employee_id",
-    type: "input",
-    message: "Enter the ID of the employees you want to update:",
-   },
-   {
-    name: "new_role_id",
-    type: "input",
-    message: "Enter the new roles ID for the employees:",
-   },
-  ])
-  .then((answers) => {
-   pool.query(
-    "UPDATE employees SET role_id = $1 WHERE id = $2",
-    [answers.new_role_id, answers.employee_id],
-    (err) => {
-     if (err) throw err;
-     console.log("Employee roles updated successfully!");
-     startApp();
-    }
-   );
-  });
+ pool.query(
+  "SELECT id, CONCAT(first_name, ' ', last_name) AS name FROM employees",
+  (err, empRes) => {
+   if (err) throw err;
+
+   const employees = empRes.rows;
+
+   pool.query("SELECT id, title FROM roles", (err, roleRes) => {
+    if (err) throw err;
+
+    const roles = roleRes.rows;
+
+    inquirer
+     .prompt([
+      {
+       name: "employee_name",
+       type: "list",
+       message: "Select the employee to update:",
+       choices: employees.map((employee) => employee.name),
+      },
+      {
+       name: "role_title",
+       type: "list",
+       message: "Select the new role for this employee:",
+       choices: roles.map((role) => role.title),
+      },
+     ])
+     .then((answers) => {
+      const selectedEmployee = employees.find(
+       (employee) => employee.name === answers.employee_name
+      );
+      const employee_id = selectedEmployee ? selectedEmployee.id : null;
+
+      const selectedRole = roles.find(
+       (role) => role.title === answers.role_title
+      );
+      const role_id = selectedRole ? selectedRole.id : null;
+
+      pool.query(
+       "UPDATE employees SET role_id = $1 WHERE id = $2",
+       [role_id, employee_id],
+       (err) => {
+        if (err) throw err;
+        console.log("Employee role updated successfully!");
+        startApp();
+       }
+      );
+     });
+   });
+  }
+ );
 }
 
 // Start the app
